@@ -1,0 +1,39 @@
+# Day 2 — app + database with one command (Fri 20 Nov 2026)
+#
+#   docker compose up     # starts db, waits until it is healthy, then app
+#   docker compose down   # stops everything (add -v to also delete pgdata)
+#
+# The app does not log in to Postgres yet — /health only checks that the
+# database port answers. Real login/config moves to Day 5.
+services:
+  app:
+    build: .
+    image: my-app:day2
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      DB_HOST: db
+      DB_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-smi}
+      POSTGRES_DB: ${POSTGRES_DB:-myapp}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-myapp}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-smi} -d ${POSTGRES_DB:-myapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
