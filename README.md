@@ -1,4 +1,4 @@
-# DevOps refresh — Days 1–2 (Thu 19 – Fri 20 Nov 2026)
+# DevOps refresh — Days 1–3 (Thu 19 – Sat 21 Nov 2026)
 
 Your tiny app is already written — `app.py` uses only the Python standard
 library, so there is nothing to `pip install`. About 2 hours a day, from
@@ -100,6 +100,55 @@ docker compose down -v     # also deletes pgdata — only when you want a clean 
 Done when: app + database start together with `docker compose up`, and
 `/health` says `"db": "postgres"`.
 
+## Day 3 — Publish it (Sat 21 Nov)
+
+Today is about making the image runnable by someone else, not just on
+your laptop.
+
+### 1. Log in to Docker Hub
+
+Create a free account at hub.docker.com if you don't have one, then
+on your laptop:
+
+```bash
+docker login
+```
+
+Use your own Docker Hub username and password / token. Never put a
+password in the repo or in a script.
+
+### 2. Tag and push the Day 2 image
+
+Replace `YOUR-DOCKERHUB-USERNAME` with your own username, or use the
+script — it does the same three steps:
+
+```bash
+docker build -t my-app:day2 .
+docker tag my-app:day2 YOUR-DOCKERHUB-USERNAME/my-app:day2
+docker push YOUR-DOCKERHUB-USERNAME/my-app:day2
+```
+
+Or:
+
+```bash
+./scripts/publish.sh YOUR-DOCKERHUB-USERNAME day2
+```
+
+### 3. Pull it on a clean run and confirm it still works
+
+```bash
+docker pull YOUR-DOCKERHUB-USERNAME/my-app:day2
+docker run -p 8000:8000 YOUR-DOCKERHUB-USERNAME/my-app:day2
+```
+
+Open http://localhost:8000 — you should see the Day 2 message.
+Note: this run has no database, so `/health` will say
+`"db": "unreachable"` here. That is expected — the database comes
+from Compose (Day 2), this image on its own is just the app.
+
+Done when: someone else could run your app from your Docker Hub image
++ this README alone.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -120,3 +169,6 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   is not installed on this machine, so run those on your laptop and tell
   Muse the exact error if one appears. The real Postgres check happens
   on your laptop, via Compose.
+- Day 3: `scripts/publish.sh` was syntax-checked here (`sh -n`), but
+  the actual `docker push` to Docker Hub was **not** done here — it
+  needs your Docker Hub account and `docker login` on your laptop.
