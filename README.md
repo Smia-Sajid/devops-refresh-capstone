@@ -1,4 +1,4 @@
-# DevOps refresh — Days 1–3 (Thu 19 – Sat 21 Nov 2026)
+# DevOps refresh — Days 1–4 (Thu 19 – Sun 22 Nov 2026)
 
 Your tiny app is already written — `app.py` uses only the Python standard
 library, so there is nothing to `pip install`. About 2 hours a day, from
@@ -149,6 +149,53 @@ from Compose (Day 2), this image on its own is just the app.
 Done when: someone else could run your app from your Docker Hub image
 + this README alone.
 
+## Day 4 — Kubernetes, first deployment (Sun 22 Nov)
+
+The app only — no database yet. The database moves to Kubernetes on
+Day 7, and config/secrets move on Day 5.
+
+### 1. Start a local cluster
+
+Install `kubectl` plus kind or Minikube, then create a cluster:
+
+```bash
+kind create cluster        # kind
+# or
+minikube start             # Minikube
+```
+
+### 2. Load the local image into the cluster
+
+The Deployment uses your local Day 2 image, `my-app:day2` — the
+cluster cannot see your laptop's Docker images unless you load it in:
+
+```bash
+kind load docker-image my-app:day2     # kind
+# or
+minikube image load my-app:day2        # Minikube
+```
+
+You do **not** need the Day 3 Docker Hub push done first for this
+step. After that push, replace the image in
+`k8s/deployment.yaml` with `<your-docker-hub-username>/my-app:day2`
+and the cluster will pull it instead.
+
+### 3. Deploy and check
+
+```bash
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+kubectl get pods,svc
+kubectl scale deployment my-app --replicas=3
+kubectl get pods -w
+```
+
+The Service is a NodePort on 30080, so open
+http://localhost:30080 — you should see the Day 2 message.
+`/health` will say `"db": "unreachable"` here. That is expected:
+there is no database in the cluster yet on Day 4.
+
+Done when: your app is running in Kubernetes, not just in Docker.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -172,3 +219,9 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
 - Day 3: `scripts/publish.sh` was syntax-checked here (`sh -n`), but
   the actual `docker push` to Docker Hub was **not** done here — it
   needs your Docker Hub account and `docker login` on your laptop.
+- Day 4: `k8s/deployment.yaml` (3 replicas, `my-app:day2`,
+  `imagePullPolicy: IfNotPresent`) and `k8s/service.yaml` (NodePort
+  30080) were checked here as valid YAML with no passwords in them.
+  `kubectl apply` was **not** tested here — there is no cluster on
+  this machine, so run it on your laptop after loading the image
+  into kind/Minikube.

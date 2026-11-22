@@ -1,0 +1,61 @@
+# Day 4 — Kubernetes, first deployment (Sun 22 Nov 2026)
+#
+# Deploy the Day 1-3 app to a local cluster (kind or Minikube).
+# This is the app only — no database yet. The database moves to
+# Kubernetes on Day 7, and config/secrets move on Day 5.
+#
+# Image: the local Day 2 image, built on your laptop with
+#   docker build -t my-app:day2 .
+# Load it into the cluster first, otherwise the pods cannot find it:
+#   minikube image load my-app:day2        # Minikube
+#   kind load docker-image my-app:day2     # kind
+# After the Day 3 Docker Hub push, replace the image with
+#   <your-docker-hub-username>/my-app:day2
+# and the cluster will pull it instead.
+#
+# Apply:
+#   kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+#   kubectl get pods,svc
+#   kubectl scale deployment my-app --replicas=3
+#   kubectl get pods -w
+#
+# Visit the app (Minikube):
+#   minikube service my-app --url
+# Or with NodePort, on the cluster node:
+#   http://localhost:30080
+# You should see "Hello from Smi's Docker refresh - Day 2 is running!"
+# /health will say "db": "unreachable" here — expected: there is no
+# database in the cluster yet on Day 4. That is the Day 7 step.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: app
+          image: my-app:day2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: DB_HOST
+              value: "db"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "smi"
+            - name: POSTGRES_DB
+              value: "myapp"
