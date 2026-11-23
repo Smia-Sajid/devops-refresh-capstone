@@ -1,4 +1,12 @@
 # Day 4 — Kubernetes, first deployment (Sun 22 Nov 2026)
+# Day 5 — config moved out of the Deployment (Mon 23 Nov 2026):
+# the container now gets its env from the app-config ConfigMap
+# and the db-secret Secret (envFrom below), so no config or
+# password is hard-coded here anymore. Apply the ConfigMap and
+# Secret FIRST — a pod whose envFrom names a missing ConfigMap
+# or Secret will not start:
+#   kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+#   kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
 #
 # Deploy the Day 1-3 app to a local cluster (kind or Minikube).
 # This is the app only — no database yet. The database moves to
@@ -48,14 +56,8 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
-          env:
-            - name: PORT
-              value: "8000"
-            - name: DB_HOST
-              value: "db"
-            - name: DB_PORT
-              value: "5432"
-            - name: POSTGRES_USER
-              value: "smi"
-            - name: POSTGRES_DB
-              value: "myapp"
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: db-secret

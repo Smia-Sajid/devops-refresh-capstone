@@ -1,0 +1,30 @@
+# Day 5 — ConfigMap: non-sensitive config (Mon 23 Nov 2026)
+#
+# Everything here is safe to commit to GitHub: no passwords.
+# These are the same values that were hard-coded in
+# k8s/deployment.yaml on Day 4 — PORT, DB_HOST, DB_PORT,
+# POSTGRES_USER and POSTGRES_DB.
+#
+# Apply:
+#   kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+#   kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+#   kubectl get pods,svc
+#   kubectl get configmap app-config -o yaml
+#
+# Check the app still works:
+#   http://localhost:30080            (Day 2 message)
+#   http://localhost:30080/health     ("db": "unreachable" is still
+#                                      expected — no database in the
+#                                      cluster yet; that is Day 7)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  labels:
+    app: my-app
+data:
+  PORT: "8000"
+  DB_HOST: "db"
+  DB_PORT: "5432"
+  POSTGRES_USER: "smi"
+  POSTGRES_DB: "myapp"

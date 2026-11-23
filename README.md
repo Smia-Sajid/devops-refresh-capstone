@@ -1,4 +1,4 @@
-# DevOps refresh — Days 1–4 (Thu 19 – Sun 22 Nov 2026)
+# DevOps refresh — Days 1–5 (Thu 19 – Mon 23 Nov 2026)
 
 Your tiny app is already written — `app.py` uses only the Python standard
 library, so there is nothing to `pip install`. About 2 hours a day, from
@@ -196,6 +196,46 @@ there is no database in the cluster yet on Day 4.
 
 Done when: your app is running in Kubernetes, not just in Docker.
 
+## Day 5 — ConfigMaps + Secrets (Mon 23 Nov)
+
+No config or password is hard-coded in the Deployment anymore.
+Config lives in a ConfigMap, the password in a Secret.
+
+- `k8s/configmap.yaml` — `app-config`: PORT, DB_HOST, DB_PORT,
+  POSTGRES_USER, POSTGRES_DB. Safe to commit, no passwords in it.
+- `k8s/secret.yaml` — `db-secret`: only the placeholder
+  `"changeme"`, the same default as in `.env.example`. Never commit
+  a real password here. For a real one, use
+  `kubectl create secret generic db-secret --from-literal=POSTGRES_PASSWORD='...'`
+  and do not keep it in Git.
+- `k8s/deployment.yaml` — the container now gets its env from both
+  with `envFrom`, instead of the hard-coded `env:` block from Day 4.
+
+### 1. Apply the ConfigMap + Secret FIRST
+
+Order matters — a pod whose `envFrom` names a missing ConfigMap
+or Secret will not start:
+
+```bash
+kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+```
+
+### 2. Redeploy
+
+```bash
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml
+kubectl get pods,svc
+kubectl get configmap app-config -o yaml
+kubectl exec deploy/my-app -- printenv | grep -E 'PORT|DB_|POSTGRES_'
+```
+
+Open http://localhost:30080 — Day 2 message again. `/health`
+will still say `"db": "unreachable"`, expected: no database in
+the cluster yet, that is Day 7.
+
+Done when: no password or config is hard-coded in the image or
+the Deployment.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -225,3 +265,8 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   `kubectl apply` was **not** tested here — there is no cluster on
   this machine, so run it on your laptop after loading the image
   into kind/Minikube.
+- Day 5: `k8s/configmap.yaml`, `k8s/secret.yaml` and the updated
+  `k8s/deployment.yaml` (envFrom, no hard-coded env) were checked
+  here as valid YAML. The Secret holds only the placeholder
+  `"changeme"` — no real password. `kubectl apply` was **not**
+  tested here, same as Day 4.
