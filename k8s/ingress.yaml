@@ -1,0 +1,45 @@
+# Day 6 — Ingress: reach the app by hostname, not by port (Tue 24 Nov 2026)
+#
+# This exposes the existing my-app Service (port 8000) at
+# http://my-app.local — no NodePort number to remember, and the
+# same hostname works after a rolling update.
+#
+# 1. Enable the Ingress controller FIRST (Minikube):
+#      minikube addons enable ingress
+#      kubectl get pods -n ingress-nginx
+#    For kind instead, install the same controller:
+#      kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
+#      kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+#    (kind note: without extra port mappings in the kind config,
+#    reach it with a port-forward — see the README Day 6 section.)
+#
+# 2. Point the hostname at the cluster (Minikube):
+#      echo "$(minikube ip) my-app.local" | sudo tee -a /etc/hosts
+#    On Windows, add the same line to C:\Windows\System32\drivers\etc\hosts
+#    with the minikube IP instead of 127.0.0.1.
+#
+# 3. Apply and check:
+#      kubectl apply -f k8s/ingress.yaml
+#      kubectl get ingress my-app
+#      curl http://my-app.local
+#    You should see the Day 6 message after the rolling update below.
+#    NodePort http://localhost:30080 still works as a fallback.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-app
+  labels:
+    app: my-app
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: my-app.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: my-app
+                port:
+                  number: 8000

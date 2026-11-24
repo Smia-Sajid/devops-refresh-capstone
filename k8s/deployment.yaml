@@ -1,4 +1,11 @@
 # Day 4 — Kubernetes, first deployment (Sun 22 Nov 2026)
+# Day 6 — rolling update (Tue 24 Nov 2026): image is now my-app:day6
+# (app.py message changed to Day 6), with an explicit rolling-update
+# strategy — maxSurge 1, maxUnavailable 0 — so the update rolls out
+# one pod at a time with no downtime. Roll back any time with:
+#   kubectl rollout undo deployment/my-app
+# Note: rollout undo changes the cluster only; the files in this
+# repo stay on Day 6, so re-applying this file rolls forward again.
 # Day 5 — config moved out of the Deployment (Mon 23 Nov 2026):
 # the container now gets its env from the app-config ConfigMap
 # and the db-secret Secret (envFrom below), so no config or
@@ -12,13 +19,15 @@
 # This is the app only — no database yet. The database moves to
 # Kubernetes on Day 7, and config/secrets move on Day 5.
 #
-# Image: the local Day 2 image, built on your laptop with
-#   docker build -t my-app:day2 .
+# Image: the local Day 6 image, built on your laptop with
+#   docker build -t my-app:day6 .
 # Load it into the cluster first, otherwise the pods cannot find it:
-#   minikube image load my-app:day2        # Minikube
-#   kind load docker-image my-app:day2     # kind
+#   minikube image load my-app:day6        # Minikube
+#   kind load docker-image my-app:day6     # kind
+# Or roll it out without editing this file:
+#   kubectl set image deployment/my-app app=my-app:day6
 # After the Day 3 Docker Hub push, replace the image with
-#   <your-docker-hub-username>/my-app:day2
+#   <your-docker-hub-username>/my-app:day6
 # and the cluster will pull it instead.
 #
 # Apply:
@@ -42,6 +51,12 @@ metadata:
     app: my-app
 spec:
   replicas: 3
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: my-app
@@ -52,7 +67,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: my-app:day2
+          image: my-app:day6
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000

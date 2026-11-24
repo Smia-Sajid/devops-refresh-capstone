@@ -6,7 +6,9 @@ there is still nothing to `pip install`.
 Day 2 adds one new endpoint so Compose can prove the app and the
 database are wired together without needing a Postgres driver:
 
-  GET /        -> "Hello from Smi's Docker refresh - Day 2 is running!"
+  GET /        -> "Hello from Smi's Docker refresh - Day 6 is running!"
+  (Day 6 changes only this message, so a rolling update is visible:
+  Day 2 message = old version, Day 6 message = new version.)
   GET /health  -> JSON: {"status": "ok", "db": "postgres"|"unreachable", ...}
 
 The /health check speaks a little of the Postgres wire protocol: it
@@ -82,7 +84,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
         else:
-            body = b"Hello from Smi's Docker refresh - Day 2 is running!\n"
+            body = b"Hello from Smi's Docker refresh - Day 6 is running!\n"
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
         self.send_header("Content-Length", str(len(body)))

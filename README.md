@@ -1,4 +1,4 @@
-# DevOps refresh — Days 1–5 (Thu 19 – Mon 23 Nov 2026)
+# DevOps refresh — Days 1–6 (Thu 19 – Tue 24 Nov 2026)
 
 Your tiny app is already written — `app.py` uses only the Python standard
 library, so there is nothing to `pip install`. About 2 hours a day, from
@@ -236,6 +236,103 @@ the cluster yet, that is Day 7.
 Done when: no password or config is hard-coded in the image or
 the Deployment.
 
+## Day 6 — Ingress + rolling update (Tue 24 Nov)
+
+Two things today: reach the app by a hostname instead of a port
+number, then update it without downtime — and roll it back.
+
+- `k8s/ingress.yaml` — `my-app`: host `my-app.local`, path `/`,
+  to the `my-app` Service on port 8000.
+- `k8s/deployment.yaml` — image is now `my-app:day6`, with an
+  explicit rolling-update strategy (`maxSurge: 1`,
+  `maxUnavailable: 0`), so pods update one at a time and the app
+  never goes down.
+- `app.py` — only the `/` message changed, to
+  `Hello from Smi's Docker refresh - Day 6 is running!` That is
+  the point: the message is how you can see which version is live.
+
+### 1. Enable the Ingress controller
+
+```bash
+minikube addons enable ingress
+kubectl get pods -n ingress-nginx
+```
+
+For kind instead:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+```
+
+### 2. Point the hostname at the cluster
+
+```bash
+echo "$(minikube ip) my-app.local" | sudo tee -a /etc/hosts
+```
+
+On Windows, add the same line to
+`C:\Windows\System32\drivers\etc\hosts`, using the minikube IP.
+On kind without extra port mappings, use a port-forward instead
+and keep the `Host` header:
+
+```bash
+kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
+curl -H "Host: my-app.local" http://localhost:8080
+```
+
+### 3. Apply the Ingress and check the old version first
+
+```bash
+kubectl apply -f k8s/ingress.yaml
+kubectl get ingress my-app
+curl http://my-app.local
+```
+
+You should still see the Day 2 message here — the new image has
+not rolled out yet. NodePort http://localhost:30080 still works
+as a fallback.
+
+### 4. Build the new version and roll it out
+
+```bash
+docker build -t my-app:day6 .
+minikube image load my-app:day6        # Minikube
+# or
+kind load docker-image my-app:day6     # kind
+kubectl apply -f k8s/deployment.yaml
+kubectl rollout status deployment/my-app
+kubectl get pods -w
+```
+
+Or, without editing any file:
+
+```bash
+kubectl set image deployment/my-app app=my-app:day6
+kubectl rollout status deployment/my-app
+```
+
+Now `curl http://my-app.local` should show the Day 6 message.
+Watch the pods while it rolls: old pods end one by one as new
+ones become ready — that is the zero-downtime update.
+
+### 5. Roll it back
+
+```bash
+kubectl rollout history deployment/my-app
+kubectl rollout undo deployment/my-app
+kubectl rollout status deployment/my-app
+curl http://my-app.local
+```
+
+The Day 2 message is back. That is the safety net: a bad version
+goes away with one command. Note that `rollout undo` changes
+only the cluster — the files in this repo stay on Day 6, so
+re-applying `k8s/deployment.yaml` rolls forward to Day 6 again.
+
+Done when: you can update the app without downtime and roll back
+if it breaks.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -270,3 +367,11 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   here as valid YAML. The Secret holds only the placeholder
   `"changeme"` — no real password. `kubectl apply` was **not**
   tested here, same as Day 4.
+- Day 6: `k8s/ingress.yaml`, the updated `k8s/deployment.yaml`
+  (image `my-app:day6`, rolling-update strategy, no hard-coded
+  env) and the updated `app.py` were checked here as valid YAML /
+  run here — `app.py` returned the Day 6 message on `/` and
+  `"db": "unreachable"` on `/health` (expected, no database in
+  the cluster yet). `kubectl apply`, the Ingress controller and
+  the rollout were **not** tested here — there is no cluster on
+  this machine, so run those on your laptop.
