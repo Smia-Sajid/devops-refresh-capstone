@@ -1,0 +1,23 @@
+# Day 7 — Postgres storage: 1Gi PersistentVolumeClaim (Wed 25 Nov 2026)
+#
+# Holds /var/lib/postgresql/data so the database survives a pod restart.
+# Uses the cluster's default StorageClass (Minikube and kind both
+# provide one); no storageClassName is set on purpose.
+#
+# Apply first, before the Deployment:
+#   kubectl apply -f k8s/postgres-pvc.yaml
+#   kubectl get pvc pgdata
+#
+# Deleting this claim deletes the data — only do that for a clean start.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgdata
+  labels:
+    app: db
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

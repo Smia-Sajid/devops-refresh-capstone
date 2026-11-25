@@ -1,4 +1,4 @@
-# DevOps refresh — Days 1–6 (Thu 19 – Tue 24 Nov 2026)
+# DevOps refresh — Days 1–7 (Thu 19 – Wed 25 Nov 2026)
 
 Your tiny app is already written — `app.py` uses only the Python standard
 library, so there is nothing to `pip install`. About 2 hours a day, from
@@ -333,6 +333,110 @@ re-applying `k8s/deployment.yaml` rolls forward to Day 6 again.
 Done when: you can update the app without downtime and roll back
 if it breaks.
 
+## Day 7 — Kubernetes checkpoint: full app + database (Wed 25 Nov)
+
+The checkpoint: everything from Days 1–6 running together in the
+cluster, from the YAML in this repo — no Compose, no manual steps
+left out of Git.
+
+- `k8s/postgres-pvc.yaml` — `pgdata`, 1Gi, so the database survives
+  a pod restart.
+- `k8s/postgres-deployment.yaml` — `db`, 1 replica of
+  `postgres:16-alpine`, the same image as Compose on Day 2. It gets
+  `POSTGRES_USER` / `POSTGRES_DB` from the Day 5 ConfigMap and
+  `POSTGRES_PASSWORD` from the Day 5 Secret (placeholder only).
+- `k8s/postgres-service.yaml` — `db`, ClusterIP on 5432. The name
+  matters: the app already looks for `DB_HOST=db`, so this Service
+  is what flips `/health` to `"db": "postgres"`. The database is
+  not exposed outside the cluster — no NodePort, no Ingress for it.
+- No app change today: the app Deployment already points at `db`,
+  and `/health` checks on every request, so the app needs no
+  redeploy or rebuild once the database is up.
+
+### 1. Apply, in this order
+
+```bash
+kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+kubectl apply -f k8s/postgres-pvc.yaml
+kubectl apply -f k8s/postgres-deployment.yaml -f k8s/postgres-service.yaml
+kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
+```
+
+### 2. Check the whole stack
+
+```bash
+kubectl get pods,svc,pvc,ingress
+kubectl logs deployment/db
+kubectl get pods -w
+curl http://my-app.local/health
+curl http://my-app.local
+```
+
+You should now see `"db": "postgres"` on `/health` — the first time
+in the cluster — and the Day 6 message on `/`. NodePort
+http://localhost:30080/health works as a fallback check.
+
+### 3. Screenshots to take
+
+- `kubectl get pods,svc,pvc,ingress` showing app (3 pods), db
+  (1 pod), both Services, the PVC Bound, and the Ingress.
+- The app in a browser at http://my-app.local, and
+  http://my-app.local/health showing `"db": "postgres"`.
+
+### 4. What still feels shaky — your Day 12–14 fix list
+
+Write it here honestly after running the checkpoint; do not leave
+it blank. Start from these, keep the ones that are true for you:
+
+- [ ] Postgres is 1 replica with one ReadWriteOnce PVC — it cannot
+  scale like the app, and deleting the PVC deletes the data.
+- [ ] The Secret still holds the placeholder password — a real
+  password must come from `kubectl create secret`, never from Git.
+- [ ] The app image is still local (`my-app:day6`) — the Day 3
+  Docker Hub push is what makes it pullable elsewhere.
+- [ ] Anything else that broke or felt unclear today: ___________
+
+Done when: the repo has working K8s YAML for app + database, and
+the screenshots prove it.
+
+## Day 8 — Jenkins, first pipeline (Thu 26 Nov)
+
+Jenkins runs in Docker on your laptop, and the pipeline lives in
+this repo as `Jenkinsfile` — a Declarative Pipeline that checks
+out the repo and prints hello. No build, no test, no deploy yet:
+today is only "a push can trigger a Jenkins job".
+
+### 1. Run Jenkins in Docker
+
+```bash
+docker run -d --name jenkins -p 8080:8080 -p 50000:50000 \
+  -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts
+docker logs jenkins
+```
+
+Copy the initial admin password from the logs, open
+http://localhost:8080, and log in. Choose **Install suggested
+plugins**, then also install **Docker Pipeline** (Manage Jenkins →
+Plugins → Available plugins → search "Docker Pipeline" → Install).
+
+### 2. Create the pipeline job
+
+- New Item → name it `devops-refresh-capstone` → **Pipeline** → OK.
+- Under Pipeline, set Definition to **Pipeline script from SCM**,
+  SCM to **Git**, and Repository URL to
+  `https://github.com/Smia-Sajid/devops-refresh-capstone.git`.
+- Script Path stays `Jenkinsfile`. Save, then **Build Now**.
+
+### 3. Check it
+
+The build should go green and the console output should show
+`Hello from Jenkins - Day 8 pipeline is running!` plus the
+`ls -la` listing of the checked-out repo. Take a screenshot of
+the green build — that is your first Jenkins proof for Day 13.
+
+Done when: a push can trigger a Jenkins job, and the first build
+is green.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -375,3 +479,20 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   the cluster yet). `kubectl apply`, the Ingress controller and
   the rollout were **not** tested here — there is no cluster on
   this machine, so run those on your laptop.
+- Day 7: `k8s/postgres-deployment.yaml` (1 replica, `postgres:16-alpine`,
+  envFrom the Day 5 ConfigMap + Secret, PVC mount, `pg_isready`
+  readiness probe), `k8s/postgres-service.yaml` (ClusterIP `db`
+  on 5432) and `k8s/postgres-pvc.yaml` (1Gi, ReadWriteOnce) were
+  checked here as valid YAML, with no real password anywhere — the
+  Secret still holds only the placeholder. `kubectl apply` was
+  **not** tested here — there is no cluster on this machine, so
+  run it on your laptop and confirm `/health` says
+  `"db": "postgres"` there.
+- Day 8: `Jenkinsfile` (Declarative Pipeline: Checkout stage with
+  `checkout scm` + `ls -la`, Hello stage printing the Day 8
+  message) was checked here by reading it back — it has no
+  credentials and no build/deploy step, as planned. Jenkins itself
+  was **not** run here — there is no Docker on this machine, so
+  run `docker run jenkins/jenkins:lts` on your laptop, install the
+  suggested plugins + Docker Pipeline, and point the job at this
+  repo with Script Path `Jenkinsfile`.

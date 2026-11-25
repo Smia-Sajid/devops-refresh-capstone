@@ -1,0 +1,84 @@
+# Day 7 — Postgres in Kubernetes: database + storage (Wed 25 Nov 2026)
+#
+# This is the missing half of the stack: until now the app ran in the
+# cluster but /health always said "db": "unreachable", because there was
+# no database in the cluster. These three files fix that, using only
+# what Days 2 and 5 already set up:
+#
+#   - postgres:16-alpine — the same image as docker-compose.yml (Day 2)
+#   - POSTGRES_USER / POSTGRES_DB come from the app-config ConfigMap
+#     (Day 5), POSTGRES_PASSWORD from the db-secret Secret (Day 5,
+#     placeholder "changeme" only — never commit a real password here)
+#   - The app already points at DB_HOST=db (ConfigMap), so the Service
+#     below must be named "db" — that name is what makes /health flip
+#     to "postgres" with no change to the app Deployment.
+#
+# Files:
+#   k8s/postgres-pvc.yaml        — 1Gi PersistentVolumeClaim "pgdata"
+#   k8s/postgres-deployment.yaml — 1 replica of Postgres 16
+#   k8s/postgres-service.yaml    — ClusterIP Service "db" on 5432
+#
+# Apply in this order (PVC first, so the Deployment has somewhere
+# to mount; ConfigMap + Secret must already exist from Day 5):
+#
+#   kubectl apply -f k8s/configmap.yaml -f k8s/secret.yaml
+#   kubectl apply -f k8s/postgres-pvc.yaml
+#   kubectl apply -f k8s/postgres-deployment.yaml -f k8s/postgres-service.yaml
+#   kubectl apply -f k8s/deployment.yaml -f k8s/service.yaml -f k8s/ingress.yaml
+#
+# Check:
+#   kubectl get pods,svc,pvc,ingress
+#   kubectl logs deployment/db
+#   kubectl get pods -w                       # wait until db is Running
+#   curl http://my-app.local/health           # expect "db": "postgres"
+#   curl http://my-app.local                  # Day 6 message, unchanged
+#   # NodePort fallback still works:
+#   curl http://localhost:30080/health
+#
+# Why 1 replica: Postgres with a single PVC cannot run as 3 replicas
+# sharing one ReadWriteOnce volume — that is a Day 12-14 fix-list item,
+# not a Day 7 bug. One replica is the correct local-cluster shape.
+#
+# Data survives a pod restart (the PVC holds /var/lib/postgresql/data)
+# but NOT `kubectl delete pvc pgdata` — deleting the claim deletes the
+# data. That is expected for a local checkpoint, not for production.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: db-secret
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+          # Values match app-config (POSTGRES_USER=smi, POSTGRES_DB=myapp).
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "smi", "-d", "myapp"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: pgdata

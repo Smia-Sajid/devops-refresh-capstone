@@ -1,0 +1,25 @@
+# Day 7 — Postgres Service: the name the app already looks for (Wed 25 Nov 2026)
+#
+# The app's ConfigMap sets DB_HOST=db, so this Service must be named
+# "db". It is ClusterIP (the default): only pods inside the cluster
+# reach it — the database is never exposed on a NodePort or Ingress.
+# The app reaches it at db:5432; you check it from inside the cluster
+# with the app's /health endpoint, not by connecting to it directly.
+#
+# Apply:
+#   kubectl apply -f k8s/postgres-service.yaml
+#   kubectl get svc db
+#   kubectl get endpoints db
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  labels:
+    app: db
+spec:
+  type: ClusterIP
+  selector:
+    app: db
+  ports:
+    - port: 5432
+      targetPort: 5432
