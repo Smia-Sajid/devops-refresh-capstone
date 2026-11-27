@@ -437,6 +437,58 @@ the green build — that is your first Jenkins proof for Day 13.
 Done when: a push can trigger a Jenkins job, and the first build
 is green.
 
+## Day 9 — Build + test in Jenkins (Fri 27 Nov)
+
+Day 8 proved a push can trigger a job. Day 9 makes Jenkins do
+real work on every push: compile the app, then run its tests —
+and fail the build if either step fails.
+
+- `test_app.py` — 3 tests, Python standard library only, same
+  pattern as the revived CI repo: it starts the real app on a
+  free local port and checks `/` returns the Docker refresh
+  message, `/health` says `"db": "unreachable"` with no database,
+  and `/health` says `"db": "postgres"` against a small stub
+  that answers like Postgres. Run it any time with
+  `python3 -m unittest -v`.
+- `Jenkinsfile` — two new stages after Hello: **Build**
+  (`python3 -m py_compile app.py test_app.py`) and **Test**
+  (`python3 -m unittest -v`). The `post` block now also says
+  plainly whether the build went green or red, and which stage
+  to look at when it is red.
+
+### 1. See it go red once, on purpose
+
+This is the point of the day — a pipeline you have never seen
+fail will not teach you what red means:
+
+```bash
+# In Jenkins, run the job once with a deliberate break, e.g.
+# change one test expectation in test_app.py, Build Now, watch
+# it go red — then undo the change, Build Now again, watch it
+# go green. Do not commit the broken version to GitHub.
+```
+
+### 2. Check it
+
+The green build's console should show all 3 tests passing
+(`Ran 3 tests ... OK`) and `Day 9 pipeline is green: build and
+tests passed.` Take a screenshot of the green build — that is
+your Day 13 proof that Jenkins builds and tests on every push.
+
+If Jenkins says `python3: not found`, install it inside the
+Jenkins container first — do not change the Jenkinsfile:
+
+```bash
+docker exec -u root jenkins apt-get update && docker exec -u root jenkins apt-get install -y python3
+```
+
+Then Build Now again. No app change today: the app still
+returns the Day 6 message on `/`, so the Day 7 Kubernetes
+checkpoint is untouched.
+
+Done when: Jenkins builds and tests on every push, and you have
+seen it go red and back to green.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -496,3 +548,11 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   run `docker run jenkins/jenkins:lts` on your laptop, install the
   suggested plugins + Docker Pipeline, and point the job at this
   repo with Script Path `Jenkinsfile`.
+- Day 9: `test_app.py` (3 tests, same pattern as the revived CI
+  repo) was run here — all 3 passed in 0.04s — and the updated
+  `Jenkinsfile` (Checkout, Hello, Build with `py_compile`, Test
+  with `python3 -m unittest -v`, plus green/red `post` messages)
+  was checked here by reading it back, braces balanced, no
+  credentials in it. Jenkins itself was **not** run here — there
+  is no Docker on this machine, so run the job on your laptop
+  and confirm the console shows `Ran 3 tests ... OK`.
