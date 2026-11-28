@@ -489,6 +489,85 @@ checkpoint is untouched.
 Done when: Jenkins builds and tests on every push, and you have
 seen it go red and back to green.
 
+## Day 10 — Jenkins builds + pushes the image (Sat 28 Nov)
+
+Day 9 made Jenkins build and test. Day 10 closes the loop to
+Docker Hub: after the tests pass, Jenkins builds the Docker
+image and pushes it, so a GitHub push alone produces a new
+image — no manual `docker push` step.
+
+- `Jenkinsfile` — two new stages after Test: **Build Image**
+  (`docker build -t my-app:day10 .`) and **Push Image**, which
+  logs in to Docker Hub, tags the image as
+  `<your-docker-hub-username>/my-app:day10` and pushes it.
+  The login uses Jenkins credentials, not a password in the
+  file: `withCredentials` reads a Username + Password credential
+  with ID `docker-hub` and passes it to `docker login` only
+  inside that stage. No password or token is in the repo.
+
+### 1. Create the Docker Hub credential in Jenkins (once)
+
+In Jenkins: Manage Jenkins → Credentials → (global) → Add
+Credentials → Kind: Username with password. Set ID to exactly
+`docker-hub`, Username to your Docker Hub username, Password to
+a Docker Hub access token (Docker Hub → Account Settings →
+Security → New Access Token — use a token, not your account
+password). Save it, then Build Now.
+
+### 2. Check it
+
+The green build's console should show `Ran 3 tests ... OK`,
+then the image build, then `Pushed` for
+`<your-docker-hub-username>/my-app:day10`. Check Docker Hub
+(Repositories) — the `day10` tag should be there. Take a
+screenshot of the green build and of the Docker Hub tag — that
+is your Day 13 proof that a push produces a new image.
+
+If Jenkins says `docker: not found`, the Jenkins container
+needs Docker access first — do not change the Jenkinsfile:
+give the Jenkins container the Docker socket / Docker CLI
+(the same setup as the Day 8 Jenkins-in-Docker step), then
+Build Now again. If the Push stage fails with `denied` or
+`unauthorized`, the `docker-hub` credential is wrong or the
+token has expired — re-check the ID (`docker-hub`), username
+and token, not the Jenkinsfile.
+
+No app change today: the app still returns the Day 6 message
+on `/`, so the Day 7 Kubernetes checkpoint is untouched. The
+Jenkins run itself still needs your laptop (or a cloud machine)
+— the battery issue is still open — but the GitHub push does
+not need it, so tomorrow's green dot can still go in.
+
+Done when: GitHub push → Jenkins → new `day10` image on
+Docker Hub, with no manual step.
+
+## Cloud route — run Docker + Jenkins without the laptop
+
+If the laptop battery is still dead, use GitHub Codespaces
+instead — it runs in the browser on your phone, no install,
+no card. Your GitHub Free account includes 120 core-hours
+a month, which is 60 hours on the 2-core machine — plenty
+for about 2 hours a day. Pick the 2-core machine so the
+free hours last.
+
+1. Open the repo on github.com, tap **Code → Codespaces →
+   Create codespace on main**, choose the 2-core machine,
+   and wait for it to build (first build takes a few minutes).
+   It already has Python 3.12, Docker, kubectl, Helm and
+   Minikube, from `.devcontainer/devcontainer.json`.
+2. In the Codespace terminal, check it: `docker --version`
+   and `python3 -m unittest -v` (all 3 tests should pass).
+3. Then do the Day 8 Jenkins steps inside the Codespace:
+   run Jenkins in Docker, create the Pipeline job, Build Now.
+   Jenkins is on port 8080 — Codespaces will offer to open
+   it in the browser.
+4. A Codespace stops after 30 minutes idle. Delete it from
+   the Codespaces page when you are done for the day, so it
+   does not keep using free hours.
+
+Not tested yet — the first Codespaces run is the test. If
+`docker` fails inside it, send Muse the exact error.
+
 ## If Docker will not install
 
 Tell Muse what your laptop is (Windows/Mac/Linux, roughly how old) and the
@@ -556,3 +635,18 @@ route (e.g. Docker in a cloud VM) instead of losing the day to setup.
   credentials in it. Jenkins itself was **not** run here — there
   is no Docker on this machine, so run the job on your laptop
   and confirm the console shows `Ran 3 tests ... OK`.
+- Day 10: `test_app.py` was run here again — all 3 passed in
+  0.543s — and the updated `Jenkinsfile` (Checkout, Hello,
+  Build, Test, plus new Build Image `docker build -t
+  my-app:day10 .` and Push Image stages using Jenkins
+  credentials ID `docker-hub` via `withCredentials`, no
+  password or token in the file) was checked here by reading it
+  back, braces balanced. Jenkins and Docker themselves were
+  **not** run here — there is no Docker on this machine, so
+  create the `docker-hub` credential in Jenkins on your laptop
+  (or cloud machine), run the job, and confirm the `day10` tag
+  appears in Docker Hub.
+- `.devcontainer/devcontainer.json` (Python 3.12 base image,
+  Docker-in-Docker + kubectl/Helm/Minikube features, ports
+  8000/8080/30080, tests run on create) was checked here as
+  valid JSON only — the Codespaces first run is still the test.
